@@ -8,7 +8,7 @@
 // 每幀：把「基礎頂點」按物理規則位移 → 「動畫頂點」，再丟給 WEBGL 畫。
 // ============================================================================
 
-const LEVI_BUILD = "human51";   // 腳本版本（與 index.html 的 BUILD_TAG 比對 → HUD 徽章防舊快取）
+const LEVI_BUILD = "human52";   // 腳本版本（與 index.html 的 BUILD_TAG 比對 → HUD 徽章防舊快取）
 
 // ---------------------------------------------------------------------------
 // GLSL 着色器：有機深海皮層 / 純生物發光 都靠它
@@ -126,7 +126,7 @@ void main() {
 
   // ---- 微觀凹凸：材質高度場的梯度擾動法線 → 表面有顆粒/溝紋/皺褶，不再像光滑塑膠 ----
   //     離太遠會閃爍 → 依距離淡出
-  float bumpFade = clamp(1.0 - length(uCamEye - vP) * 0.018, 0.0, 1.0);
+  float bumpFade = clamp(1.0 - length(uCamEye - vP) * 0.024, 0.0, 1.0);
   if (uMode < 0.5 && uBump > 0.0 && bumpFade > 0.01) {
     vec3 T = normalize(cross(N, abs(N.z) < 0.99 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0)));
     vec3 B = cross(N, T);
@@ -167,6 +167,8 @@ void main() {
   // ---- 材質紋理（uMat）：模擬現實材質的顏色紋理（岩理/樹皮溝紋/土壤團粒/藤蔓斑）----
   if (uMode < 0.5 && uMat > 0.5) {
     float close = clamp(1.0 - dist * 0.026, 0.0, 1.0);   // 高頻細節中距離就可見（遠了才淡出防閃）
+    // ★超高頻（毛孔/晶點級）用更快的淡出：遠景看是「噪點」，近看才該開
+    float closeH = clamp(1.0 - dist * 0.055, 0.0, 1.0);
     if (uMat < 1.5) {
       // ===== 岩石：大尺度色塊 + 裂縫網 + 礦物晶點（花崗/玄武岩感）=====
       float broad = fbm3(tp * 0.75 + 5.0);
@@ -175,8 +177,8 @@ void main() {
       base = mix(base, base * vec3(1.12, 1.03, 0.88), smoothstep(0.55, 0.82, broad)); // 亮塊偏暖（石英/鏽斑）
       base *= 1.0 - 0.68 * crack;                        // 裂縫沉暗（有深度感）
       float speck = vn(tp * 26.0 + 61.0);                // 高頻礦物斑
-      base += vec3(0.15, 0.145, 0.13) * step(0.968, speck) * close;  // 雲母/石英閃點
-      base *= 1.0 - 0.35 * step(speck, 0.030) * close;   // 黑色礦物斑點
+      base += vec3(0.15, 0.145, 0.13) * step(0.968, speck) * closeH;  // 雲母/石英閃點（高頻 → 快速淡出）
+      base *= 1.0 - 0.35 * step(speck, 0.030) * closeH;   // 黑色礦物斑點
     } else if (uMat < 2.5) {
       // ===== 樹皮：縱向溝紋（深溝暗、稜線風化偏灰白）+ 枯木深裂 =====
       vec3 q = vec3(tp.x * 4.6, tp.y * 4.6, tp.z * 1.05);
@@ -208,7 +210,7 @@ void main() {
       float micro = fbm3(tp * 9.0 + 61.0);              // 細皺（第二層皺褶）
       float tone = fbm3(tp * 1.7 + 88.0);               // 膚色斑塊（血色深淺不均）
       base *= 0.84 + 0.28 * micro;
-      base *= 0.95 + 0.10 * pore * close;
+      base *= 0.95 + 0.10 * pore * closeH;              // 毛孔高頻 → 快速淡出（遠看不再像噪點）
       base = mix(base, base * vec3(1.10, 0.90, 0.88), smoothstep(0.55, 0.82, tone) * 0.68);  // 斑處偏血紅
       base = mix(base, base * vec3(0.86, 0.92, 0.97), smoothstep(0.55, 0.82, 1.0 - tone) * 0.40); // 淺斑處偏青冷
     } else {
@@ -633,7 +635,10 @@ class Leviathan {
         }
         pos[i] = nx; pos[i + 1] = y; pos[i + 2] = nz;
       }
-      if (hT > 0) this.computeNormalsFrom(this.torso, pos);   // 形變後重演演算法線
+      // ★每幀無條件重算法線：軀幹的脊椎波＋扇拍位移每幀都在動，
+      //   舊版只有 hT>0（人形化）才重算 → 幼體/原始蝠翼造型的法線凍結在建模姿態，
+      //   光照不跟表面走 ＝ 魚鰭「面片感」的元凶（absEff>0 時②b 會再算一次，無妨）
+      this.computeNormalsFrom(this.torso, pos);
     }
 
     // ---------- ② 腹膜：Voronoi 細胞呼吸蠕動 ----------
@@ -668,6 +673,8 @@ class Leviathan {
                                 //   m2(hT.56) 保留 95%、hT≥0.59 永遠 100% ＝變形中途的長刀翼膜
                                 //   乘法才對：hT 0→1 時 1→0 線性收光（x/y 收、z 不動）
       }
+      // ★腹膜每幀 Voronoi 呼吸都在動 → 無條件重算法線（absEff>0 時 ②b 會再算一次）
+      this.computeNormalsFrom(this.belly, pos);
     }
 
     // ---------- ②b 抽象形變：沿軸扭轉 + 非均勻比例呼吸 + 徑向流場位移 ----------
@@ -1402,6 +1409,9 @@ class Leviathan {
           }
         }
       }
+      // ★碎片每幀自轉 → 每幀重算法線（舊版凍結在建造姿態 → 自轉時光照不跟著轉，
+      //   讀起來像一片片「死的方形貼紙」；收到原點時退化成零面積，算不算是無害）
+      this.computeNormalsFrom(this.shards, pos);
     }
 
     // ---------- ⑧ 逆世界巨影：離地越高擺得越明顯（只在逆世界更新） ----------
@@ -1512,7 +1522,7 @@ class Leviathan {
       const part = { id: "rock" + k, world: true, base: [], faces: [], pos: null,
                      normals: null, mat: 1, color: cs.slice(),
                      colorSea: cs, colorUp: cu };
-      this.shadows.push({ x: cx, y: cy, r: s * 1.5, a: 90 }); // 接地陰影（比物體大一圈）
+      this.shadows.push({ x: cx, y: cy, r: s * 1.5, a: 105 }); // 接地陰影（比物體大一圈）
       const gz = this.floorZ(cx, cy);
       // 實例化：xy 乘 s、z 乘 s*squash、底部半埋 +s*0.15
       this.addInstanced(part, meshes[k % meshes.length],
@@ -1733,7 +1743,7 @@ class Leviathan {
       part.sway = { gz: gz - 1.2, h, ph: rnd() * 6.28, amp: 0.26 + rnd() * 0.16 };
       this.trees.push({ x: cx, y: cy, r: 2.2 });
       this.obstacles.push({ x: cx, y: cy, r: 2.2, zTop: gz + h + 2 });  // +2 = 樹枝高度餘裕
-      this.shadows.push({ x: cx, y: cy, r: 3.2, a: 80 });   // 樹根陰影
+      this.shadows.push({ x: cx, y: cy, r: 3.2, a: 95 });   // 樹根陰影
     }
 
     // ---- 遠景枯樹剪影：圍在活動範圍外（r 48~78），更高大、近黑 → 霧吃成剪影 ----
@@ -1889,7 +1899,7 @@ class Leviathan {
     this.colossus = part;
     this.colossusBaseZ = gz;
     this.obstacles.push({ x: gx, y: gy, r: 9, zTop: gz + 40 });   // 腿腳的迴避範圍（巨塔永遠高過生物）
-    this.shadows.push({ x: gx, y: gy, r: 10.5, a: 65 });   // 巨影腳下大片暗斑
+    this.shadows.push({ x: gx, y: gy, r: 10.5, a: 85 });   // 巨影腳下大片暗斑
     // 巨影背後的紅色風暴光暈：同一條射線更遠處 → 黑塔永遠襯在紅光前（剪影才讀得出來）
     this.stormGlow = { x: gx * 1.5, y: gy * 1.5, z: gz + 17, r: 15 };
   }
@@ -1903,9 +1913,11 @@ class Leviathan {
     const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     const NSEG = 96;                        // 一圈 96 段（剪影要夠密才順）
     const part = { id: "ridge", world: true, base: [], faces: [], pos: null, normals: null,
+                   mat: 1,                        // ★岩石紋理（fbm4+ridge3）→ 山有岩理層次而不是死黑剪影
+                   fogStart: 55, fogDens: 0.020,  // ★自己的淡霧（環境的 0.05 在 95 單位外會吃掉 94%）
                    color: [10, 6, 9],
-                   colorSea: [16, 26, 44],  // 深海：藍黑海底山脊
-                   colorUp: [10, 6, 9] };   // 逆世界：焦黑山群
+                   colorSea: [30, 44, 70],  // 深海：藍灰海底山脊（提亮 → 不再死黑）
+                   colorUp: [34, 18, 15] };  // 逆世界：焦黑帶紅的山群
     // 每個角度一「根」山：先用三個不同頻率的正弦疊出山峰高低，再加抖動
     const hAt = a =>
       4 + 10 * Math.max(0, Math.sin(a * 2.7 + 1.1))
@@ -2723,7 +2735,7 @@ class Leviathan {
         }
       }
       this.finalizePart(part);
-      if (s > 0.6) this.shadows.push({ x: cx, y: cy, r: s * 1.5, a: 60 });
+      if (s > 0.6) this.shadows.push({ x: cx, y: cy, r: s * 1.5, a: 75 });
     }
   }
 
@@ -3059,10 +3071,21 @@ class Leviathan {
 
   // 立即模式畫三角面（環境與身體共用，一律吃「世界座標版」wpos/wnorm）
   drawParts(p, parts) {
+    // 群組霧的回退值（render() 每個繪製群組前會更新 _gFog*）
+    const gfS = this._gFogStart != null ? this._gFogStart : 4.2;
+    const gfD = this._gFogDens != null ? this._gFogDens : 0.050;
     for (const part of parts) {
       // 材質紋理分支：有標籤用標籤；沒標籤 → 環境(靜態 world)=0 不加、身體部件=5 皮膚毛孔
-      if (this.shader) this.shader.setUniform("uMat",
-        part.mat != null ? part.mat : (part.world ? 0 : 5));
+      if (this.shader) {
+        this.shader.setUniform("uMat",
+          part.mat != null ? part.mat : (part.world ? 0 : 5));
+        // ★每部件霧覆寫：遠山用「更淡的霧」讓岩理透出來（環境的 0.05 濃霧在 95 單位外
+        //   會把山吃成 94% 純色 → 讀起來像死黑剪影貼紙；淡霧才分得出遠近層次）
+        this.shader.setUniform("uFogStart",
+          part.fogStart != null ? part.fogStart : gfS);
+        this.shader.setUniform("uFogDens",
+          part.fogDens != null ? part.fogDens : gfD);
+      }
       p.fill(part.color[0], part.color[1], part.color[2]);
       p.noStroke();
       p.beginShape(p.TRIANGLES);
@@ -3099,7 +3122,7 @@ class Leviathan {
   //   預設著色器 + 每頂點填色（顏色直接烘焙、不吃 GLSL 霧）→ 比 background()
   //   的單色多出「大氣層次」；閃電時整片天空一起紅移
   // ==========================================================================
-  drawSky(p, mode, fl) {
+  drawSky(p, mode, fl, t = 0) {
     const R = 150;
     const fog = envFogRGB(this.env, mode === "glow", fl);
     const dim = mode === "glow" ? 0.30 : 1;            // 純發光模式：天空壓暗
@@ -3108,7 +3131,8 @@ class Leviathan {
     const flAdd = this.env === "up" ? [60, 14, 10] : [24, 34, 46]; // 閃電增亮色
     const cl = v => (v > 255 ? 255 : v < 0 ? 0 : v);
     // 仰角 e = z/R：>0 天空（地平線→天頂）、<0 地平線下（快速融進霧色 → 無色縫）
-    const colAt = e => {
+    //   az = 方位角（海面微光用）
+    const colAt = (e, az) => {
       let c;
       if (e >= 0) {
         const k = Math.pow(e, 0.5);                   // 近地平線變色快、高空大片深色
@@ -3118,11 +3142,21 @@ class Leviathan {
         c = [0, 1, 2].map(i => hor[i] + (fog[i] - hor[i]) * k);
       }
       const boost = 0.45 + 0.55 * (1 - Math.abs(e));  // 閃電時地平線一帶更亮
-      return [0, 1, 2].map(i => cl((c[i] + flAdd[i] * fl * boost) * dim));
+      const out = [0, 1, 2].map(i => cl((c[i] + flAdd[i] * fl * boost) * dim));
+      // 深海水面微光：地平線一帶緩慢明暗波動（往上看水面光斑漂移 → 水平線不再是死平線）
+      if (this.env === "sea" && t && e > -0.02 && e < 0.26) {
+        const k2 = 1 - e / 0.26;
+        const sh = Math.sin(az * 5 + t * 0.5) * Math.sin(az * 9 - t * 0.8)
+                 * Math.sin(e * 42 + t * 0.35);
+        const g2 = sh * 8 * k2;
+        return out.map(v => cl(v + g2));
+      }
+      return out;
     };
     shaderOff(p);
     p.noStroke();
-    const SEG = 28, RINGS = 14;
+    // 24 經度帶（14 → 24：帶間插值誤差減半 → 漸層更平滑，色帶另由 post dither 治）
+    const SEG = 40, RINGS = 24;
     for (let j = 0; j < RINGS; j++) {                 // 緯度帶一圈圈畫（TRIANGLE_STRIP）
       const e0 = -1 + (2 * j) / RINGS, e1 = -1 + (2 * (j + 1)) / RINGS;
       const r0 = Math.sqrt(Math.max(0, 1 - e0 * e0)) * R;
@@ -3131,10 +3165,10 @@ class Leviathan {
       for (let i = 0; i <= SEG; i++) {
         const a = (i / SEG) * Math.PI * 2;
         const ca = Math.cos(a), sa = Math.sin(a);
-        const c0 = colAt(e0);
+        const c0 = colAt(e0, a);
         p.fill(c0[0], c0[1], c0[2]);
         p.vertex(r0 * ca, r0 * sa, e0 * R);
-        const c1 = colAt(e1);
+        const c1 = colAt(e1, a);
         p.fill(c1[0], c1[1], c1[2]);
         p.vertex(r1 * ca, r1 * sa, e1 * R);
       }
@@ -3279,14 +3313,15 @@ class Leviathan {
     // 靜態投射物（建造時收集的清單）
     for (const s of this.shadows) blob(s.x, s.y, s.r, s.a);
     // 利維坦：離地越高 → 陰影越大越淡（懸浮感）
+    //   提強（105→140 底、下限 25→40）：深海懸浮時 lift 大，舊參數掉到 25 幾乎看不見 → 沒有接地感
     const P = this.pose;
     const lift = Math.max(0, P.z - this.floorZ(P.x, P.y));
-    blob(P.x, P.y, 3.2 + lift * 0.35, Math.max(25, 105 - lift * 7));
+    blob(P.x, P.y, 3.4 + lift * 0.32, Math.max(40, 140 - lift * 6));
     // 地行獸：貼地小暗斑（吞食中會跟著縮小，最後消失）
     for (const w of ws) {
       if (w.eaten) continue;
       const sc = w.swallow ? Math.max(0.1, 1 - (w.swallow.t / w.swallow.dur) * 0.9) : 1;
-      blob(w.x, w.y, 1.9 * sc, 95 * sc);
+      blob(w.x, w.y, 1.9 * sc, 115 * sc);
     }
     if (g && g.depthMask) g.depthMask(true);
   }
@@ -3446,7 +3481,7 @@ class Leviathan {
       const cb = Math.min(255, (r2 + (fog[2] * 255 - r2) * k) * dim);
       const bz = up ? this.floorZ(r.x, r.y) + 0.4 : -11.5;   // 下端：up 落在起伏地面上
       p.beginShape(p.QUADS);
-      p.fill(cr, cg, cb, up ? 58 : 30);                // 上端：亮（逆世界穿雲暖紅更醒目）
+      p.fill(cr, cg, cb, up ? 58 : 46);      // 深海水柱提亮（30 → 46，光柱更明顯）                // 上端：亮（逆世界穿雲暖紅更醒目）
       p.vertex(r.x + rx * (sw - r.w * 0.3), r.y + ry * (sw - r.w * 0.3), 26);
       p.vertex(r.x + rx * (sw + r.w * 0.3), r.y + ry * (sw + r.w * 0.3), 26);
       p.fill(cr, cg, cb, 2);                           // 下端：淡出
@@ -3613,7 +3648,7 @@ class Leviathan {
     this.worldize(this.eyes, F);
 
     // ====== 天空穹頂 + 高空雲層（最底層；雲用 depthMask 關深度 → 實體能蓋住雲） ======
-    this.drawSky(p, mode, fl);
+    this.drawSky(p, mode, fl, t);
     if (this.env === "up" && mode !== "wire") this.drawClouds(p, mode, t, fl);
 
     // ====== 閃電實體：打閃瞬間劈落的折線電光（疊在天空/雲上，被實體蓋住） ======
@@ -3652,12 +3687,13 @@ class Leviathan {
       this.shader.setUniform("uBump", 1.0);         // 岩石/沙地：顆粒最重
       this.shader.setUniform("uSpec", 0.10);        // 乾燥表面：高光很弱
       this.shader.setUniform("uShine", 10.0);
-      this.shader.setUniform("uAO", 0.60);          // 環境 AO 加深 → 石頭縫隙/側面更立體、更接地
+      this.shader.setUniform("uAO", 0.68);          // 環境 AO 加深（0.60→0.68）→ 石縫/側面更立體、更接地
       this.shader.setUniform("uMottle", 1.0);       // 環境：地表大尺度色斑（更寫實）
       this.shader.setUniform("uAlien", 0.0);        // 環境不異形化
       // ---- 景深霧：環境 4.2 單位就起霧、密度 0.05 → 遠景分層融進地平霾 ----
       this.shader.setUniform("uFogStart", 4.2);
       this.shader.setUniform("uFogDens", 0.050);
+      this._gFogStart = 4.2; this._gFogDens = 0.050;   // drawParts 霧覆寫的回退值
       this.shader.setUniform("uCrack", this.env === "up" ? 1.0 : 0.0);  // 逆世界地面：裂縫餘燼
       this.shader.setUniform("uTexOrg", [0, 0, 0]);   // 環境＝靜態 → 紋理座標＝世界座標
       this.shader.setUniform("uTexYaw", 0);
@@ -3666,6 +3702,7 @@ class Leviathan {
       this.shader.setUniform("uAlien", alien);      // 生物：異形化程度（進食累積）
       this.shader.setUniform("uFogStart", 9.0);     // 生物：9 單位內不進霧（主體清楚）
       this.shader.setUniform("uFogDens", 0.035);
+      this._gFogStart = 9.0; this._gFogDens = 0.035;
       this.shader.setUniform("uCrack", 0.0);        // 生物不長裂縫光
       this.shader.setUniform("uRim", 1.0);          // 生物：完整螢光
       this.shader.setUniform("uBump", 0.55);        // 生物皮膚：微皺褶（不要太重，避免搶掉輪廓）

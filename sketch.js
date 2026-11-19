@@ -109,11 +109,11 @@ function setup() {
 
   // ── 畫質升級：場景先畫進 framebuffer，再由後製 shader 統一上質感 ──
   // framebuffer = 離屏畫布（GPU 紋理），後製 pass 會對整張畫面做泛光/色散/銳化…
-  // density=2 → 以 2 倍解析度渲染再縮-down（超取樣，邊緣變平滑）；?ss=1 可關（省效能）
+  // density=2 → 以 2 倍解析度渲染再縮-down（超取樣，邊緣變平滑）；?ss=1 關、?ss=3 三倍（更鋒但更吃 GPU）
   const ssQ = new URLSearchParams(location.search).get("ss");
   fbScene = createFramebuffer({
     textureFiltering: LINEAR,                          // 後製縮放時較平順
-    density: ssQ === "1" ? pixelDensity() : 2,         // 2 = 超取樣
+    density: ssQ === "1" ? pixelDensity() : (ssQ === "3" ? 3 : 2),  // 預設 2 超取樣
   });
   postShader = createShader(POST_VERT, POST_FRAG);
   // ?post=0 可關閉後製（A/B 比較用）；?flipy=0/1 校正 framebuffer 上下方向

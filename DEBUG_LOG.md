@@ -140,6 +140,13 @@
 | | **靜默失敗（本輪抓到的真 bug）**：掛載點寫 `if (window.SFX)` 但 `const SFX` 是詞法綁定**不上 window** → 音效從未被呼叫，API 測試卻全過（測試直接呼叫 `SFX.*` 走的是同一詞法綁定，看不出來） | 測試與生產走不同存取路徑 | `audio.js` 尾部 `window.SFX = SFX` 明確掛載；`SFX.counts` 計數器入正式碼（CDP 直接讀 counts 驗證觸發，不再靠 spy 包函式） | ✅ |
 | | **驗證**：CDP 兩套腳本 **19/19 全過**——`audio_verify` 12 項（載入/徽章 v51 ✓/API 六函式/AudioContext running/toggle/F 鍵捕食鏈/huntMsg 流/0 錯誤/無非預期 404）、`swallow_verify` 7 項（`?swallow=1` 全鏈：**counts = roar:2 bite:1 twist:2 swallow:1 evolve:1**、meals=1、console 0 錯誤）；headless 需 `--autoplay-policy=no-user-gesture-required` 才會 running | | | |
 
+### 2026-11-19 — 網頁版畫質輪（後製管線／陰影立體／環境細節／幾何紋理四面向）
+
+| 版本 | 症狀 | 根因 | 修法 | 狀態 |
+|---|---|---|---|---|
+| human52 | 四項畫質弱點全選：①後製缺抗鋸齒/ACES/大範圍暈光、天空漸層有色帶②接地陰影看不見、AO 偏弱③遠山＝純色死黑剪影貼紙、水面是一條死平線④魚鰭有「面片感」、遠景皮膚紋理像噪點 | ①POST_FRAG 只有單層 14px bloom＋純 S 曲線，無 FXAA/ACES/dither②利維坦陰影 `max(25, 105−lift×7)`（懸浮即掉到 25 幾乎不可見）、岩 90/樹 80/巨影 65 偏淡、uAO 0.60③`buildRidge` 無 `mat`（uMat=0 零紋理）＋環境濃霧 0.05 在 95 單位外吃掉 94% → 只剩霧色剪影；天空 RINGS 14 帶 8-bit 量化④**面片感真兇**：軀幹法線只在 `hT>0`（636 行）重算、腹膜只在 `absEff>0`（710 行）重算、shards 自轉後從不重算 → abs=0 時或碎片的法線凍結在建模姿態＝光照不跟表面走；毛孔(24頻)/晶點(26頻)高頻吃 `close`(0.026) 淡出太慢 → 遠景成噪點 | ①**post.js 全重寫**：FXAA（console 版 3.11，9 取樣邊緣感知）＋ ACES tone map（Narkowicz，uContrast 控混合量）＋ 三層 bloom（近光暈5px/主體14px/外圈56px）＋ 輸出端 TDF dither ±1 LSB 治色帶②陰影強化：利維坦 105→140 底/下限 25→40、walker 95→115、岩 90→105、樹 80→95、巨影 65→85、litter 60→75；環境 uAO 0.60→0.68③遠山：`mat:1` 岩理＋色值提亮（sea [30,44,70] / up [34,18,15]）＋ **per-part 霧覆寫**（drawParts 讀 `part.fogStart/fogDens` 回退群組值，render 端記 `_gFog*`；ridge 55/0.020 → 95 單位外只吃 55%，岩理透出來）；天空 RINGS 14→24、SEG 28→40；sea 地平線微光（方位×時間三重正弦 ±8 色階）；深海水柱 alpha 30→46④法線解凍：636 行改無條件重算、腹膜②尾無條件重算、shards 自轉後重算；高頻紋理新變數 `closeH`(0.055) 快速淡出（毛孔/晶點用）、bumpFade 0.018→0.024；超取樣加 `?ss=3` 選項（預設維持 2＋FXAA 補邊） | ✅ |
+| | **驗證**：CDP 三視角截圖（up 頭特寫/sea 全景/up 軌道）**0 JS 錯誤**、徽章 v52 ✓；前後對比：遠山死黑剪影→岩理＋霧分層、天空色帶消失、邊緣平滑、生物正下方與岩石下出現接地暗斑、碎片自轉光照跟隨；**FPS A/B**（git stash 基準 vs 新版，三視角各量 4s）皆 60 封頂＝零效能回歸；`audio_verify` 12/12（捕食鏈走遍變形＋法線重算路徑無炸；腳本版本預期改為與 BUILD_TAG 比對） | | | |
+
 ### 2026-11-15 — Godot 進化輪：動畫烘焙管線（CDP 七階段 → morph → AnimationPlayer）
 
 | 版本 | 症狀 | 根因 | 修法 | 狀態 |
