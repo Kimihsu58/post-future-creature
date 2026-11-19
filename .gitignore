@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# Godot 編輯器快取（可再生，不進版控）
+godot/.godot/
+
+# Blender 備份檔
+*.blend1
+
+# Python
+__pycache__/
+*.pyc

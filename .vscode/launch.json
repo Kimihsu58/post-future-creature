@@ -1,0 +1,19 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "▶ 啟動除錯 Chrome（逐行 debug）",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:8083/?dbg=1",
+      "webRoot": "${workspaceFolder}"
+    },
+    {
+      "name": "⚙ 附加到 9333 測試 Chrome（進階/我用）",
+      "type": "chrome",
+      "request": "attach",
+      "port": 9333,
+      "webRoot": "${workspaceFolder}"
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>深海圖靈利維坦 • 3D 游動模擬</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- ══════════ 載入失敗時的紅色警告（正常時隱藏） ══════════ -->
+  <div id="load-error" class="error-banner" hidden></div>
+
+  <!-- p5.js 畫布掛在這裡 -->
+  <main id="sketch-holder"></main>
+
+  <!-- ══════════ 頂部：標題 + HUD ══════════ -->
+  <header id="hud">
+    <h1>深海圖靈利維坦 • 3D 游動模擬</h1>
+    <div class="subtitle">Blender 5.2 Model &amp; Topology × p5.js WEBGL</div>
+
+    <div class="chips">
+      <span class="chip">🎥 視角: <b id="view-mode-label">自由軌道</b></span>
+      <button class="chip btn" id="btn-pause">⏸ 暫停 (空白鍵)</button>
+      <button class="chip btn" id="btn-reset">🔄 重置姿態 (R)</button>
+      <button class="chip btn" id="btn-hunt">🍖 捕食 (F)</button>
+      <button class="chip btn" id="btn-sound">🔊 音效 (M)</button>
+    </div>
+
+    <div class="chips stats">
+      <span class="chip">FPS <b id="stat-fps">--</b></span>
+      <span class="chip">模型頂點數 <b id="stat-verts">--</b></span>
+      <span class="chip">模型多邊形 <b id="stat-polys">--</b></span>
+      <span class="chip">游動頻率 <b id="stat-freq">1.9x</b></span>
+      <span class="chip">🍖 進食 <b id="stat-meals">0</b> 隻</span>
+      <span class="chip">🧬 人形化 <b id="stat-alien">0%</b></span>
+      <span class="chip" id="stat-build" title="目前載入的腳本版本（與磁碟不符＝吃到舊快取，請 Cmd+Shift+R）">版本 <b id="stat-build-v">--</b></span>
+    </div>
+
+    <div class="hint">🖱️ 左鍵拖曳旋轉 • 右鍵平移 • 滾輪縮放 • 🍖 捕食：點「🍖 捕食」按鈕或按 F（逆世界）• 🔊 開關音效：按 M</div>
+    <div id="hunt-msg"></div>
+  </header>
+
+  <!--（右側參數面板已依需求刪除：參數改用網址 ?speed=… / ?env=… / ?cam=… 調整）-->
+
+  <!-- p5.js 本地版（離線可用）；模型資料必須在 sketch 之前載入 -->
+  <script src="lib/p5.min.js"></script>
+  <script src="data/leviathan.js"></script>
+  <script src="data/env.js"></script>
+  <!-- 磁碟版版本號：sketch.js 會拿它跟 leviathan.js 的 LEVI_BUILD 比對 → HUD 徽章顯示 -->
+  <script>window.BUILD_TAG = "human51";</script>
+  <script src="audio.js?v=human51"></script>
+  <script src="leviathan.js?v=human51"></script>
+  <script src="walker.js?v=human51"></script>
+  <script src="post.js?v=human51"></script>
+  <script src="sketch.js?v=human51"></script>
+</body>
+</html>
