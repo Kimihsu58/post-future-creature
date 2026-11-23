@@ -8,7 +8,7 @@
 // 每幀：把「基礎頂點」按物理規則位移 → 「動畫頂點」，再丟給 WEBGL 畫。
 // ============================================================================
 
-const LEVI_BUILD = "human52";   // 腳本版本（與 index.html 的 BUILD_TAG 比對 → HUD 徽章防舊快取）
+const LEVI_BUILD = "human53";   // 腳本版本（與 index.html 的 BUILD_TAG 比對 → HUD 徽章防舊快取）
 
 // ---------------------------------------------------------------------------
 // GLSL 着色器：有機深海皮層 / 純生物發光 都靠它
@@ -136,10 +136,10 @@ void main() {
     float hB = matH(tp + B * e);
     // 各材質凹凸強度（樹皮溝紋最立體、岩塊碎裂次之；預設 0.16 = 舊版身體皮膚）
     float bAmp = 0.16;
-    if (uMat > 0.5 && uMat < 1.5) bAmp = 0.32;        // 岩：碎裂更深
+    if (uMat > 0.5 && uMat < 1.5) bAmp = 0.40;        // 岩：碎裂更深（0.32→0.40 近看更有浮雕感）
     else if (uMat > 1.5 && uMat < 2.5) bAmp = 0.40;   // 樹皮：溝紋立體
-    else if (uMat > 2.5 && uMat < 3.5) bAmp = 0.26;   // 泥土：團粒起伏
-    else if (uMat > 3.5 && uMat < 4.5) bAmp = 0.24;   // 藤蔓：皺皮
+    else if (uMat > 2.5 && uMat < 3.5) bAmp = 0.32;   // 泥土：團粒起伏（0.26→0.32）
+    else if (uMat > 3.5 && uMat < 4.5) bAmp = 0.30;   // 藤蔓：皺皮（0.24→0.30）
     else if (uMat > 4.5 && uMat < 5.5) bAmp = 0.26;   // 皮膚：毛孔細皺
     else if (uMat > 5.5) bAmp = 0.42;                 // 甲殼：板節立體
     N = normalize(N - (T * (hT - h0) + B * (hB - h0)) / e * uBump * bAmp * bumpFade);
@@ -170,23 +170,31 @@ void main() {
     // ★超高頻（毛孔/晶點級）用更快的淡出：遠景看是「噪點」，近看才該開
     float closeH = clamp(1.0 - dist * 0.055, 0.0, 1.0);
     if (uMat < 1.5) {
-      // ===== 岩石：大尺度色塊 + 裂縫網 + 礦物晶點（花崗/玄武岩感）=====
+      // ===== 岩石：大尺度色塊 + 中頻角狀稜面 + 裂縫網 + 礦物晶點（花崗/玄武岩感）=====
       float broad = fbm3(tp * 0.75 + 5.0);
-      float crack = smoothstep(0.72, 0.97, ridge3(tp * 2.6 + 17.0));
-      base *= 0.62 + 0.72 * broad;                       // 明暗色塊（對比拉大 → 中距離也看得見）
+      float macro = clamp(1.0 - dist * 0.16, 0.0, 1.0);  // ★只有貼到 6 單位內才算「極近」
+      float bw = 0.82 - 0.45 * macro;                    // ★極近時壓低大尺度雲狀 → 雲狀佔滿畫面就是「軟糊」元凶
+      float mid = ridge3(tp * 1.7 + 9.0);                // ★中頻山脊線＝角狀稜面（只有 fbm 會像雲一樣軟）
+      float crack = smoothstep(0.64, 0.94, ridge3(tp * 2.6 + 17.0));   // 閾值放寬 → 裂縫網更清楚
+      base *= (0.96 - bw * 0.5) + bw * broad;            // 明暗色塊（平均亮度恆 0.96，遠近一致）
+      base *= 0.80 + 0.32 * mid;                         // ★角狀明暗層 → 近看是「岩石稜面」不是軟雲
       base = mix(base, base * vec3(1.12, 1.03, 0.88), smoothstep(0.55, 0.82, broad)); // 亮塊偏暖（石英/鏽斑）
-      base *= 1.0 - 0.68 * crack;                        // 裂縫沉暗（有深度感）
+      base *= 1.0 - 0.74 * crack;                        // 裂縫沉暗（有深度感）
       float speck = vn(tp * 26.0 + 61.0);                // 高頻礦物斑
       base += vec3(0.15, 0.145, 0.13) * step(0.968, speck) * closeH;  // 雲母/石英閃點（高頻 → 快速淡出）
       base *= 1.0 - 0.35 * step(speck, 0.030) * closeH;   // 黑色礦物斑點
+      float grit = vn(tp * 44.0 + 23.0);                 // ★超細顆粒（近看砂紙感）
+      base *= 0.86 + 0.30 * grit * closeH;               // ★幅度加大（0.14→0.30）→ 極近看得到砂粒
+      float rough = fbm3(tp * 7.5 + 3.0);                // ★中高頻碎石面（0.08–0.3u 碎屑 → 極近看是「碎石脆面」不是軟雲）
+      base *= 0.85 + 0.30 * rough;
     } else if (uMat < 2.5) {
       // ===== 樹皮：縱向溝紋（深溝暗、稜線風化偏灰白）+ 枯木深裂 =====
       vec3 q = vec3(tp.x * 4.6, tp.y * 4.6, tp.z * 1.05);
       float grooves = vn(q);                             // 頻率沿 z 拉長 → 直向紋
       float fine = vn(q * 3.1 + 9.0);
       float crackT = smoothstep(0.76, 0.98, ridge3(vec3(tp.x * 3.0, tp.y * 3.0, tp.z * 0.8) + 31.0));
-      base *= 0.52 + 0.80 * grooves;                     // 溝紋明暗對比（拉大 → 遠一點也讀得到）
-      base *= 0.86 + 0.26 * fine;                        // 細紋理
+      base *= 0.50 + 0.86 * grooves;                     // 溝紋明暗對比（拉大 → 遠一點也讀得到）
+      base *= 0.84 + 0.30 * fine;                        // 細紋理
       base *= 1.0 - 0.55 * crackT;                       // 深裂（枯木開裂）
       base = mix(base, base * vec3(1.16, 1.07, 0.90), smoothstep(0.62, 0.88, grooves) * 0.55); // 稜線風化
     } else if (uMat < 3.5) {
@@ -194,16 +202,18 @@ void main() {
       float clump = fbm3(tp * 2.2 + 13.0);
       float sand = vn(tp * 17.0 + 3.0);
       float grit = vn(tp * 9.0 + 77.0);
-      base *= 0.70 + 0.56 * clump;                       // 大小團粒（對比加大）
-      base *= 0.90 + 0.20 * sand * close;                // 細砂粒（近看）
+      base *= 0.66 + 0.64 * clump;                       // 大小團粒（對比加大）
+      base *= 0.88 + 0.26 * sand * close;                // 細砂粒（近看）
       base = mix(base, base * 1.40 + vec3(0.02), step(0.905, grit) * close * 0.8);  // 礫石微亮
     } else if (uMat < 4.5) {
       // ===== 藤蔓皮：深色斑塊（腐斑/苔斑）+ 細孔 =====
       float blotch = fbm3(tp * 2.8 + 27.0);
       float pores = vn(tp * 14.0 + 5.0);
-      base *= 0.66 + 0.58 * blotch;
+      float fiber = vn(vec3(tp.x * 11.0, tp.y * 2.6, tp.z * 11.0) + 63.0);  // ★沿管走向纖維紋
+      base *= 0.58 + 0.72 * blotch;                      // 斑塊對比拉大（0.66+0.58 → 軟陶感消除）
       base = mix(base, base * vec3(0.70, 0.60, 0.60), smoothstep(0.62, 0.9, blotch) * 0.7);
-      base *= 0.93 + 0.14 * pores * close;
+      base *= 0.90 + 0.20 * pores * close;
+      base *= 0.92 + 0.16 * fiber * close;               // ★纖維細紋（藤蔓像肌束/繩不是軟陶）
     } else if (uMat < 5.5) {
       // ===== 生物皮膚：毛孔顆粒 + 細皺層 + 血色不均（近看像真皮膚而不是塑膠）=====
       float pore = vn(tp * 24.0 + 7.0);                 // 毛孔（高頻，近看才開）
@@ -220,7 +230,8 @@ void main() {
       float chitin = fbm3(tp * 6.5 + 43.0);             // 幾丁質顆粒
       float scratch = ridge3(vec3(tp.x * 9.0, tp.y * 1.3, tp.z * 9.0) + 66.0);  // 沿身體拉長的刮痕
       base *= 0.72 + 0.48 * chitin;
-      base *= 1.0 - 0.58 * seam;                        // 接縫沉暗（立體分節）
+      base *= 0.90 + 0.14 * plate;                       // ★板節整體明暗（每節微差 → 立體分節讀得出來）
+      base *= 1.0 - 0.64 * seam;                        // 接縫沉暗（立體分節）
       base *= 1.0 - 0.32 * smoothstep(0.80, 0.97, scratch) * close;  // 戰鬥刮痕（近看）
       base = mix(base, base * vec3(1.28, 1.14, 1.06), smoothstep(0.55, 0.88, chitin) * 0.45);  // 硬殼亮斑
     }
@@ -3425,13 +3436,15 @@ class Leviathan {
       const cy = c.y + Math.cos(t * c.sp * 0.7 + c.ph * 1.6) * 3.5;
       const breathe = 0.62 + 0.38 * Math.sin(t * 0.5 + c.ph * 2);  // 明暗呼吸
       const a = 26 * breathe * c.br * dim;
-      p.fill(120, 190, 235, a);
+      // ★中心亮→邊緣透明的徑向漸層（舊版整片同一 alpha ＝ 生硬多邊形亮片貼在地上）
       p.beginShape(p.TRIANGLE_FAN);
+      p.fill(120, 190, 235, a);
       p.vertex(cx, cy, this.floorZ(cx, cy) + 0.09);
       for (let i = 0; i <= 16; i++) {
         const ang = (i / 16) * Math.PI * 2;
         const rr = c.r * (0.8 + 0.2 * Math.sin(ang * 3 + c.ph));   // 邊緣不規則
         const x = cx + Math.cos(ang) * rr, y = cy + Math.sin(ang) * rr;
+        p.fill(120, 190, 235, 0);                                  // 邊緣全透明 → 柔和光斑
         p.vertex(x, y, this.floorZ(x, y) + 0.09);
       }
       p.endShape();
@@ -3480,13 +3493,17 @@ class Leviathan {
       const cg = Math.min(255, (r1 + (fog[1] * 255 - r1) * k) * dim);
       const cb = Math.min(255, (r2 + (fog[2] * 255 - r2) * k) * dim);
       const bz = up ? this.floorZ(r.x, r.y) + 0.4 : -11.5;   // 下端：up 落在起伏地面上
-      p.beginShape(p.QUADS);
-      p.fill(cr, cg, cb, up ? 58 : 46);      // 深海水柱提亮（30 → 46，光柱更明顯）                // 上端：亮（逆世界穿雲暖紅更醒目）
-      p.vertex(r.x + rx * (sw - r.w * 0.3), r.y + ry * (sw - r.w * 0.3), 26);
-      p.vertex(r.x + rx * (sw + r.w * 0.3), r.y + ry * (sw + r.w * 0.3), 26);
-      p.fill(cr, cg, cb, 2);                           // 下端：淡出
-      p.vertex(r.x + rx * (r.w / 2), r.y + ry * (r.w / 2), bz);
-      p.vertex(r.x - rx * (r.w / 2), r.y - ry * (r.w / 2), bz);
+      // ★7 欄水平漸層：中心亮、兩側透明 → 柔和光柱（舊版左右是硬邊矩形＝塑膠布感）
+      const COLS = 7;
+      p.beginShape(p.TRIANGLE_STRIP);
+      for (let i = 0; i < COLS; i++) {
+        const u = -1 + (2 * i) / (COLS - 1);
+        const f = Math.pow(Math.max(0, 1 - Math.abs(u)), 1.35);   // 水平軟邊衰減
+        p.fill(cr, cg, cb, (up ? 95 : 80) * f);               // 上端：亮（峰值比舊版高、平均差不多）
+        p.vertex(r.x + rx * (sw + u * r.w * 0.3), r.y + ry * (sw + u * r.w * 0.3), 26);
+        p.fill(cr, cg, cb, 4 * f);                            // 下端：淡出
+        p.vertex(r.x + rx * (u * r.w * 0.5), r.y + ry * (u * r.w * 0.5), bz);
+      }
       p.endShape();
     }
     if (g && g.depthMask) g.depthMask(true);
@@ -3719,7 +3736,7 @@ class Leviathan {
       if (ws.length) {
         // 地行獸：半螢光（比較像環境生物，不搶主角的戲）+ 甲殼材質
         this.shader.setUniform("uAlien", 0.0);      // 獵物不會異形化（只有利維坦會）
-        this.shader.setUniform("uRim", 0.6);
+        this.shader.setUniform("uRim", 0.45);       // 0.6→0.45：青光整圈包住＝鋁箔感，壓低讓甲殼材質出頭
         this.shader.setUniform("uBump", 0.8);
         this.shader.setUniform("uSpec", 0.35);      // 甲殼：比皮膚澀一點
         this.shader.setUniform("uShine", 16.0);

@@ -522,12 +522,13 @@ class GroundWalker {
   drawSolid(p) { this.levi.drawParts(p, this.solid); }
   drawWire(p) { this.levi.drawEdges(p, this.edges); }
 
-  // 琥珀色雙眼：朝向鏡頭的小方塊（billboard）+ 脈動微光
+  // 琥珀色雙眼：柔邊光點（中心亮→邊緣透明，跟海洋雪同招）——
+  //   舊版是硬邊小方塊，遠看像浮在頭邊的「黃色便利貼」
   drawEyes(p, t) {
     if (!this.eyeL) return;                      // 還沒跑過 update（保險閘）
     const pulse = 0.6 + 0.4 * Math.sin(t * 2.2);
+    const a = 235 * (0.75 + 0.25 * pulse);       // 中心 alpha（脈動呼吸）
     p.noStroke();
-    p.fill(255, 140 + 70 * pulse, 45);
     const cam = this.levi.camEye;
     for (const E of [this.eyeL, this.eyeR]) {
       let dx = cam[0] - E[0], dy = cam[1] - E[1], dz = cam[2] - E[2];
@@ -536,14 +537,19 @@ class GroundWalker {
       const rl = Math.hypot(rx, ry, rz) || 1; rx /= rl; ry /= rl;
       const ux = ry * dz, uy = -rx * dz,                     // right × dir
                 uz = rx * dy - ry * dx;
-      const s = 0.08 * (this.scaleK || 1);       // 吞食縮小時眼睛跟著縮
-      const ax = E[0] + rx * s + ux * s, ay = E[1] + ry * s + uy * s, az = E[2] + rz * s + uz * s;
-      const bx = E[0] - rx * s + ux * s, by = E[1] - ry * s + uy * s, bz = E[2] - rz * s + uz * s;
-      const cx = E[0] - rx * s - ux * s, cy = E[1] - ry * s - uy * s, cz = E[2] - rz * s - uz * s;
-      const dx2 = E[0] + rx * s - ux * s, dy2 = E[1] + ry * s - uy * s, dz2 = E[2] + rz * s - uz * s;
-      p.beginShape(p.TRIANGLES);
-      p.vertex(ax, ay, az); p.vertex(bx, by, bz); p.vertex(cx, cy, cz);
-      p.vertex(ax, ay, az); p.vertex(cx, cy, cz); p.vertex(dx2, dy2, dz2);
+      const s = 0.13 * (this.scaleK || 1);       // 光暈半徑（比舊方塊大一圈，但邊緣透明）
+      p.beginShape(p.TRIANGLE_FAN);
+      p.fill(255, 200 + 55 * pulse, 90, a);                 // 中心：亮核
+      p.vertex(E[0], E[1], E[2]);
+      const N = 10;
+      for (let i = 0; i <= N; i++) {
+        const ang = (i / N) * Math.PI * 2;
+        const cs = Math.cos(ang) * s, sn = Math.sin(ang) * s;
+        p.fill(255, 140 + 70 * pulse, 45, 0);               // 邊緣：透明 → 柔暈
+        p.vertex(E[0] + rx * cs + ux * sn,
+                 E[1] + ry * cs + uy * sn,
+                 E[2] + rz * cs + uz * sn);
+      }
       p.endShape();
     }
   }

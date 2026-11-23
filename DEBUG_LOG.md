@@ -140,6 +140,14 @@
 | | **靜默失敗（本輪抓到的真 bug）**：掛載點寫 `if (window.SFX)` 但 `const SFX` 是詞法綁定**不上 window** → 音效從未被呼叫，API 測試卻全過（測試直接呼叫 `SFX.*` 走的是同一詞法綁定，看不出來） | 測試與生產走不同存取路徑 | `audio.js` 尾部 `window.SFX = SFX` 明確掛載；`SFX.counts` 計數器入正式碼（CDP 直接讀 counts 驗證觸發，不再靠 spy 包函式） | ✅ |
 | | **驗證**：CDP 兩套腳本 **19/19 全過**——`audio_verify` 12 項（載入/徽章 v51 ✓/API 六函式/AudioContext running/toggle/F 鍵捕食鏈/huntMsg 流/0 錯誤/無非預期 404）、`swallow_verify` 7 項（`?swallow=1` 全鏈：**counts = roar:2 bite:1 twist:2 swallow:1 evolve:1**、meals=1、console 0 錯誤）；headless 需 `--autoplay-policy=no-user-gesture-required` 才會 running | | | |
 
+### 2026-11-22 — 網頁版材質輪（六材質紋理對比＋環境特效軟邊）
+
+| 版本 | 症狀 | 根因 | 修法 | 狀態 |
+|---|---|---|---|---|
+| human53 | 「材質包調一下」→ 選「整體質感再升級」。勘察七特寫（$T/mat_survey.mjs）發現五弱點：①岩面近看＝軟雲狀（`?fx=0` A/B 證明是紋理本身、不是後製）②海床有生硬多邊形亮片③光柱左右硬邊像塑膠布④walker 眼睛＝生硬黃方塊、青 rim 整圈包住像鋁箔⑤岩/泥土/藤蔓對比不足 | ①岩色只有 `fbm3(0.75)` 低頻雲＋對比 0.62+0.72、無中頻角狀層，grit 幅度僅 ±7%；貼到 6 單位內時大尺度雲狀佔滿畫面＝「軟糊」元凶②`drawCaustics` TRIANGLE_FAN 整片單一 alpha（fill 只呼叫一次、每個頂點同值）③`drawRays` QUADS 只有垂直漸層，左右邊緣全 alpha 硬切④`drawEyes` 是 fill 後畫兩個 TRIANGLES 硬方塊；walker uRim 0.6 整圈高亮⑤六材質對比係數保守 | ①岩：中頻 `ridge3(1.7)` 角狀稜面＋裂縫閾值 0.72~0.97→0.64~0.94、強度 0.68→0.74＋`rough=fbm3(7.5)` 中高頻碎屑＋ grit 幅度 0.14→0.30×closeH＋**極近 LOD**（`macro=1-dist*0.16`：6 單位內壓低 broad 雲狀權重 0.82→0.37，平均亮度恆 0.96、遠景零變動）②caustics 改每頂點 alpha（中心 a → 邊 0 徑向漸層）③rays 改 7 欄 TRIANGLE_STRIP＋`pow(1−|u|,1.35)` 水平軟邊，峰值 sea 46→80／up 58→95、底 4×f④eyes 改 TRIANGLE_FAN 柔邊光點（中心 alpha 235 → 邊 0、半徑 0.08→0.13）；walker uRim 0.6→0.45⑤樹皮溝紋 0.50+0.86／細紋 0.84+0.30、泥土團粒 0.66+0.64／砂 0.88+0.26、藤蔓斑 0.58+0.72＋沿管纖維紋＋pores 0.20、甲殼 plate 整體明暗＋seam 0.58→0.64；bAmp 岩 0.32→0.40／泥 0.26→0.32／藤 0.24→0.30；`LEVI_BUILD`+`BUILD_TAG`→human53 | ✅ |
+| | **靜默失敗（本輪抓到）**：重跑勘察截圖徽章停在 **v52**——舊 `/tmp/cdp_mat` Chrome profile 快取餵舊 index.html，首批「human53 截圖」其實拍的是 human52 程式；修法後首批 walker 舊黃方塊＝快取假象 | 持久化 headless profile 會快取 HTML/JS | 勘察與 A/B 腳本全改 `--user-data-dir=/tmp/…_${Date.now()}`（每次全新 profile）＋導航帶 `?cb=53`；驗證時先看徽章 v53 ✓ 才看圖 | ✅ |
+| | **驗證**：mat_survey 七特寫 0 JS 錯誤、徽章 v53 ✓——岩面 dist 8/15 脆裂紋理＋暗裂縫網、dist 4.5 極近為鏡頭貼岩面掠射角的邊緣情況（後製 A/B：fx=0 更糊 → 後製反而在修補）；海床多邊形亮片消失、光柱柔暈、walker 眼柔光＋rim 壓低、樹皮縱紋/藤蔓纖維/甲殼板節到位；`fps.mjs` **60.5／0 錯誤**、`audio_verify` **12/12**（音效零回歸） | | | |
+
 ### 2026-11-19 — 網頁版畫質輪（後製管線／陰影立體／環境細節／幾何紋理四面向）
 
 | 版本 | 症狀 | 根因 | 修法 | 狀態 |
