@@ -50,7 +50,7 @@ class GroundWalker {
       const A = rings[i], B = rings[i + 1];
       for (let k = 0; k < sides; k++) {
         const k2 = (k + 1) % sides;
-        part.faces.push(A[k], A[k2], B[k2], A[k], A[k2], B[k]);
+        part.faces.push(A[k], A[k2], B[k2], A[k], B[k2], B[k]);
       }
     }
     // 端點補扇形蓋（不然甲殼前後是空心洞）
@@ -148,7 +148,7 @@ class GroundWalker {
         const A = rings[r], B = rings[r + 1];
         for (let k = 0; k < 5; k++) {
           const k2 = (k + 1) % 5;
-          part.faces.push(A[k], A[k2], B[k2], A[k], A[k2], B[k]);
+          part.faces.push(A[k], A[k2], B[k2], A[k], B[k2], B[k]);
         }
       }
       L.finalizePart(part);
@@ -174,7 +174,7 @@ class GroundWalker {
         const A = rings[r], B = rings[r + 1];
         for (let k = 0; k < 4; k++) {
           const k2 = (k + 1) % 4;
-          part.faces.push(A[k], A[k2], B[k2], A[k], A[k2], B[k]);
+          part.faces.push(A[k], A[k2], B[k2], A[k], B[k2], B[k]);
         }
       }
       L.finalizePart(part);      // 收進 levi.parts → HUD 統計自動包含地行獸

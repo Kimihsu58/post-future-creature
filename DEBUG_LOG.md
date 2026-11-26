@@ -148,6 +148,14 @@
 | | **靜默失敗（本輪抓到）**：重跑勘察截圖徽章停在 **v52**——舊 `/tmp/cdp_mat` Chrome profile 快取餵舊 index.html，首批「human53 截圖」其實拍的是 human52 程式；修法後首批 walker 舊黃方塊＝快取假象 | 持久化 headless profile 會快取 HTML/JS | 勘察與 A/B 腳本全改 `--user-data-dir=/tmp/…_${Date.now()}`（每次全新 profile）＋導航帶 `?cb=53`；驗證時先看徽章 v53 ✓ 才看圖 | ✅ |
 | | **驗證**：mat_survey 七特寫 0 JS 錯誤、徽章 v53 ✓——岩面 dist 8/15 脆裂紋理＋暗裂縫網、dist 4.5 極近為鏡頭貼岩面掠射角的邊緣情況（後製 A/B：fx=0 更糊 → 後製反而在修補）；海床多邊形亮片消失、光柱柔暈、walker 眼柔光＋rim 壓低、樹皮縱紋/藤蔓纖維/甲殼板節到位；`fps.mjs` **60.5／0 錯誤**、`audio_verify` **12/12**（音效零回歸） | | | |
 
+### 2026-11-26 — 網頁版拓樸／陰影／餘燼 gating 三修（walker 面片＋接觸陰影圓環＋樹石染裂縫）
+
+| 版本 | 症狀 | 根因 | 修法 | 狀態 |
+|---|---|---|---|---|
+| human54 | 三弱點：①walker 甲殼近看「碎紙團面片感」（低模棱面亂反光）②海床接觸陰影出現**同心圓硬環**（靶心狀）③樹幹被餘燼裂縫染出「燃燒環」、巨石滿身橙脈（地面才該有的餘燼爬到樹石上） | ①**quad 面片錯字**：`walker.js` 三處（lathe 主體 53 行、腿 151 行、管 177 行）寫 `A[k], A[k2], B[k2], A[k], A[k2], B[k]`——第四頂點重複 `A[k]`＝退化三角＋繞序錯，法線亂掉才會棱面亂反光；`leviathan.js` tube() 三處本來就寫對 `A[k], B[k2], B[k]` ②`drawContactShadows` 四圈**同 alpha 疊加**、最外圈硬切 `a×0.15` → 同心圓硬邊 ③`uCrack`（餘燼裂縫）是**全域 uniform**，樹/巨石等 `mat≠3` 部件照吃到裂縫紋理 | ①walker.js 三處面片全改 `A[k], B[k2], B[k]`（與 leviathan.js tube 一致）②`drawContactShadows` 改**單圈徑向漸層**（中心 a → 邊 0，每頂點 alpha 連續衰減，無硬切）③render 端設 `_gCrack = env==="up" ? 1 : 0`，`drawParts` 只給 `part.mat===3`（seabed/litter 地面）→ 樹/巨石/身體不再吃裂縫、**地面餘燼保留**；`LEVI_BUILD`＋`BUILD_TAG`→human54 | ✅ |
+| | **靜默失敗（本輪抓到）**：勘察三張「sea」截圖拍到的是 **up 環境**（檔案名 sea、內容 red 逆世界）冒充驗收——固定埠 **9344 被殘留 Chrome 搶走**（舊 run `Browser.close` 未 settle 的已知問題），新 run `target()` 連到舊頁面（其最後狀態＝up 迭代），環境切換根本沒發生 | 固定除錯埠＋殘留 Chrome＋連錯頁面不報錯 | 勘察腳本改**隨機埠** `9400+Date.now()%400` ＋**環境斷言**（導航後讀 `location.search` 與 `levi.env`，`≠ env` 就 throw `ENV MISMATCH` 大聲炸，絕不拍錯環境的圖）＋跑前 `pkill -f "user-data-dir=/tmp/cdp_"` 清殘留 | ✅ |
+| | **驗證**：乾淨一輪 mat_survey——環境斷言通過 `at: ["?env=sea&cb=54","sea"]`／`["?env=up&cb=54","up"]`、**0 JS 錯誤**、徽章 v54 ✓；海床硬圓環消失（只剩軟漸層陰影＋caustics 軟光斑）、樹幹燃燒環／巨石橙脈消失（地面餘燼仍在）、walker 甲殼平滑無紙團面片；`fps.mjs` **60.2／0 錯誤**、`audio_verify` **12/12**（音效零回歸） | | | |
+
 ### 2026-11-19 — 網頁版畫質輪（後製管線／陰影立體／環境細節／幾何紋理四面向）
 
 | 版本 | 症狀 | 根因 | 修法 | 狀態 |

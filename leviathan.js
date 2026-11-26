@@ -8,7 +8,7 @@
 // 每幀：把「基礎頂點」按物理規則位移 → 「動畫頂點」，再丟給 WEBGL 畫。
 // ============================================================================
 
-const LEVI_BUILD = "human53";   // 腳本版本（與 index.html 的 BUILD_TAG 比對 → HUD 徽章防舊快取）
+const LEVI_BUILD = "human54";   // 腳本版本（與 index.html 的 BUILD_TAG 比對 → HUD 徽章防舊快取）
 
 // ---------------------------------------------------------------------------
 // GLSL 着色器：有機深海皮層 / 純生物發光 都靠它
@@ -3096,6 +3096,11 @@ class Leviathan {
           part.fogStart != null ? part.fogStart : gfS);
         this.shader.setUniform("uFogDens",
           part.fogDens != null ? part.fogDens : gfD);
+        // ★每部件餘燼 gating：只有地面族（mat 3 地面/litter）吃裂縫餘燼。
+        //   舊版整個環境群組共用 uCrack → 世界座標橫紋畫到樹幹＝一圈圈「燃燒環」
+        if (this._gCrack != null) {
+          this.shader.setUniform("uCrack", part.mat === 3 ? this._gCrack : 0);
+        }
       }
       p.fill(part.color[0], part.color[1], part.color[2]);
       p.noStroke();
@@ -3305,21 +3310,20 @@ class Leviathan {
     if (g && g.depthMask) g.depthMask(false);   // 不寫深度 → 不會擋到後畫的霧
     shaderOff(p);
     p.noStroke();
-    // 一塊「柔邊」暗斑：中心不透明→邊緣透明，一圈圈同心圓做出羽化
+    // 一塊「柔邊」暗斑：中心不透明 → 邊緣 0 的徑向漸層
+    //   （舊版四圈同 alpha 疊加，最外圈仍有 a×0.15 硬切到 0 → 海床看得見一圈圈圓環痕）
     const blob = (cx, cy, r, a) => {
-      const SEG2 = 14;
-      for (let ring = 0; ring <= 3; ring++) {
-        const f = ring / 3;
-        p.beginShape(p.TRIANGLE_FAN);
-        p.fill(0, 0, 0, a * dim * (1 - f * 0.85));   // 越外圈越透明（羽化邊緣）
-        p.vertex(cx, cy, this.floorZ(cx, cy) + 0.07);
-        for (let i = 0; i <= SEG2; i++) {
-          const ang = (i / SEG2) * Math.PI * 2;
-          const x = cx + Math.cos(ang) * r * f, y = cy + Math.sin(ang) * r * f;
-          p.vertex(x, y, this.floorZ(x, y) + 0.07);
-        }
-        p.endShape();
+      const SEG2 = 16;
+      p.beginShape(p.TRIANGLE_FAN);
+      p.fill(0, 0, 0, a * dim);                     // 中心濃
+      p.vertex(cx, cy, this.floorZ(cx, cy) + 0.07);
+      p.fill(0, 0, 0, 0);                           // 邊緣 0 → 完全羽化，無可見圓邊
+      for (let i = 0; i <= SEG2; i++) {
+        const ang = (i / SEG2) * Math.PI * 2;
+        const x = cx + Math.cos(ang) * r, y = cy + Math.sin(ang) * r;
+        p.vertex(x, y, this.floorZ(x, y) + 0.07);
       }
+      p.endShape();
     };
     // 靜態投射物（建造時收集的清單）
     for (const s of this.shadows) blob(s.x, s.y, s.r, s.a);
@@ -3712,6 +3716,7 @@ class Leviathan {
       this.shader.setUniform("uFogDens", 0.050);
       this._gFogStart = 4.2; this._gFogDens = 0.050;   // drawParts 霧覆寫的回退值
       this.shader.setUniform("uCrack", this.env === "up" ? 1.0 : 0.0);  // 逆世界地面：裂縫餘燼
+      this._gCrack = this.env === "up" ? 1.0 : 0.0;   // drawParts 每部件再按 mat 閘（只有地面族吃到）
       this.shader.setUniform("uTexOrg", [0, 0, 0]);   // 環境＝靜態 → 紋理座標＝世界座標
       this.shader.setUniform("uTexYaw", 0);
       this.drawParts(p, this.worldVis);             // 只畫目前環境的物件
@@ -3721,6 +3726,7 @@ class Leviathan {
       this.shader.setUniform("uFogDens", 0.035);
       this._gFogStart = 9.0; this._gFogDens = 0.035;
       this.shader.setUniform("uCrack", 0.0);        // 生物不長裂縫光
+      this._gCrack = null;                          // null = drawParts 不覆寫（維持 0）
       this.shader.setUniform("uRim", 1.0);          // 生物：完整螢光
       this.shader.setUniform("uBump", 0.55);        // 生物皮膚：微皺褶（不要太重，避免搶掉輪廓）
       this.shader.setUniform("uSpec", 0.55);        // 濕潤表皮 → 明顯反光斑
